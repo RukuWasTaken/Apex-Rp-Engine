@@ -1,0 +1,187 @@
+//=========================================================
+//		Apex Roleplaying Engine
+//		Copyright (c) 2019, Apex Group
+//=========================================================
+// This software is distributed under the MIT License:
+// <http://opensource.org/licenses/MIT>
+//=========================================================
+
+// variables are stored in the following format:
+// var_[type]_[player_index]_[variable name]
+
+const string libapx_VARIABLE_PREFIX = "var";
+const string libapx_BANK_SECTION_VARIABLE = "vars";
+// supported variable types
+const int libapx_VARIABLE_TYPE_INT = 0;
+const int libapx_VARIABLE_TYPE_FIXED = 1;
+const int libapx_VARIABLE_TYPE_STRING = 2;
+const int libapx_VARIABLE_TYPE_UNITGROUP = 3;
+void libapx_variable_chk(string var, int player);
+
+// libapx_variable_key
+// ===========================
+// variables are stored with the following data table key:
+// var [type] [player_index] [variable name]
+// separated by spaces for easy get via StringWord
+static string libapx_variable_insert_in_list(string list, string var) {
+	string curr = StringWord(list, 1);
+	int i = 1;
+	int index = 1; // index in string
+
+	while( curr != "" ) {
+		// insert before (if the string value less than curr) by replacing
+		// space separating strings in the alias list with the inserted alias
+		if( StringCompare(var, curr, c_stringNoCase) <= 0 ) {
+			return StringReplace(list, " " + var + " ", index, index);
+		}
+		index = index + StringLength(curr) + 1; // +1 to account for space
+		i += 1;
+		curr = StringWord(list, i);
+	}
+	// else, append to end
+	return StringReplace(list, " " + var + " ", index, index);
+}
+string libapx_variable_key(string var_name, string var_type, int player) {
+	return libapx_VARIABLE_PREFIX + " " + var_type + " " + IntToString(player) + " " + var_name;
+}
+
+// libapx_variable_get
+// =====================
+// 
+int libapx_variable_generic_get(string var_name, string var_type, int player) {
+	string var_table_key = libapx_VARIABLE_PREFIX + var_type + "_" + IntToString(player) + "_" + var_name;
+	
+	if(DataTableValueExists(true, var_table_key)) {
+		return DataTableGetInt(true, var_table_key);
+	}
+	
+	return -1;
+}
+
+
+
+void libapx_variable_set(string var_name, string var_type, int player) {
+	string var_table_key = libapx_VARIABLE_PREFIX + var_type + "_" + IntToString(player) + "_" + var_name;
+
+	
+}
+
+
+bool libapx_variable_name_is_valid(string var_name) {
+	
+	return true;
+}
+
+bool libapx_variable_command_redirect(string command, int player) {
+	string subcommand = StringWord(command, 2);
+	string variable = "";
+	string content = "";
+	if( StringEqual(subcommand, "create", c_stringNoCase) ) {
+		variable = StringWord(command, 3);
+
+
+		// remove "_variable" and "create" and the variable from chat msg
+		content = StringReplaceWord(libapx_player[player].chat_msg, "_variable", "", 1, c_stringNoCase);
+		content = StringReplaceWord(libapx_player[player].chat_msg, "_var", "", 1, c_stringNoCase);
+		content = StringReplaceWord(content, "create", "", 1, c_stringNoCase);
+		content = libapx_string_trim( StringSub(content, StringFind(content, variable, c_stringNoCase) + StringLength(variable) + 1, StringLength(content)) );
+
+
+		// first check if variable already exists
+		if( BankKeyExists(libapx_player[player].bank_storage, libapx_BANK_SECTION_VARIABLE, variable) ) {
+			libapx_print_error(player, "Variable already exists, rewriting");
+			libapx_bank_remove(libapx_BANK_SECTION_VARIABLE, variable, player);
+			libapx_player[player].vars = StringReplaceWord(libapx_player[player].vars, " " + variable + " ", " ", 1, c_stringCase);
+			libapx_print_success(player, "VARIABLE REMOVED: " + variable);
+
+			libapx_bank_create(libapx_BANK_SECTION_VARIABLE, variable, content, player);
+			libapx_player[player].vars = libapx_variable_insert_in_list(libapx_player[player].vars, variable);
+			libapx_print_success(player, "VARIABLE CREATED: " + variable + "\n" + "[\'" + content + "\']");
+			libapx_variable_chk(variable, player);
+            
+			return true;
+		}
+
+		if( content == "" ) {
+			libapx_print_error(player, "VARIABLE CANNOT BE EMPTY");
+		}
+		else if ((StringContains(content,"_variable",0,false)||StringContains(content,"_var",0,false) == false)) {
+			libapx_print_error(player, "VARIABLE CANNOT CONTAIN '_VARIABLE' OR '_VAR'");
+		}
+		else if(StringLength(content) > 20){
+			libapx_print_error(player,"VARIABLE IS TOO LARGE [Max Character length is 20, your variable length is "+StringLength(content)+"]");
+		}
+		else {
+			libapx_bank_create(libapx_BANK_SECTION_VARIABLE, variable, content, player);
+			if (content == "true"){
+				variable = true;
+			libapx_player[player].vars = libapx_variable_insert_in_list(libapx_player[player].vars, variable);
+			}else if (content == "false"){
+				variable = false;
+			libapx_player[player].vars = libapx_variable_insert_in_list(libapx_player[player].vars, variable);
+			}
+			libapx_print_success(player, "VARIABLE CREATED: " + variable + "\n" + "[\'" + content + "\']");
+			libapx_variable_chk(variable, player);
+		}
+		return true;
+	}else if(StringEqual(subcommand, "get", c_stringNoCase)){
+		StringReplaceWord(libapx_player[player].chat_msg,"_variable get "+variable,content);
+	}	else if( StringEqual(subcommand, "remove", c_stringNoCase) ) {
+		variable = StringWord(command, 3);
+		if( BankKeyExists(libapx_player[player].bank_storage, libapx_BANK_SECTION_VARIABLE, variable) ) {
+			libapx_bank_remove(libapx_BANK_SECTION_VARIABLE, variable, player);
+			libapx_player[player].vars = StringReplaceWord(libapx_player[player].vars, " " + variable + " ", " ", 1, c_stringCase);
+			libapx_print_success(player, "VARIABLE REMOVED: " + variable);
+		}
+		else {
+			libapx_print_error(player, "VARIABLE " + variable + " DOES NOT EXIST");
+		}
+	}
+	else if( StringEqual(subcommand, "removeall", c_stringNoCase) ) {
+		libapx_bank_section_remove_all(libapx_BANK_SECTION_VARIABLE, player);
+		libapx_player[player].vars = "";
+		libapx_print_success(player, "ALL VARIABLES REMOVED");
+	}
+	else if( StringEqual(subcommand, "list", c_stringNoCase) ) {
+		//libapx_player[player].vars = libapx_sort_vars(player);
+		variable = libapx_string_trim(libapx_player[player].vars);
+		variable = StringReplaceWord(variable, " ", ", ", c_stringReplaceAll, c_stringNoCase);
+		libapx_print_output(player, "Variables: ");
+		libapx_print(PlayerGroupSingle(player), variable);
+	}
+	else if( StringEqual(subcommand, "print", c_stringNoCase) ) {
+		libapx_bank_key_content_dump(libapx_BANK_SECTION_VARIABLE, StringWord(command, 3), player);
+	}
+	else if( BankKeyExists(libapx_player[player].bank_storage, libapx_BANK_SECTION_VARIABLE, subcommand) ) {
+		libapx_bank_key_content_dump(libapx_BANK_SECTION_VARIABLE, subcommand, player);
+	}
+	else {
+		libapx_print_error(player, "INVALID VARIABLE COMMAND");
+	}
+
+	return false;
+}
+
+// libapx_variable_sub
+// ===================
+// recursively find and replace vars in a given string
+string libapx_variable_sub(string msg, int player) {
+	string variable = StringWord(msg, 1);
+	string subbed = "";
+	int i = 1;
+
+	while( variable != "" ) {
+		if( BankKeyExists( libapx_player[player].bank_storage, libapx_BANK_SECTION_VARIABLE, variable ) ) {
+			subbed = subbed + " " + libapx_variable_sub(BankValueGetAsString(libapx_player[player].bank_storage, libapx_BANK_SECTION_VARIABLE, variable), player);
+		}
+		else {
+			subbed = subbed + " " + variable;
+		}
+
+		i += 1;
+		variable = StringWord(msg, i);
+	}
+
+	// remove extra front end " " for return
+	return StringSub(subbed, 2, StringLength(subbed));
+}

@@ -1,0 +1,36 @@
+//=========================================================
+//		Apex Roleplaying Engine
+//		Copyright (c) 2019, Apex Group
+//=========================================================
+// This software is distributed under the MIT License:
+// <http://opensource.org/licenses/MIT>
+//=========================================================
+
+
+
+void libapx_update_camera();
+
+
+
+bool libapx_trig_ticker(bool testConds, bool runActions) {
+    int p;
+    unitgroup selected;
+    unit u;
+    int i;
+    libapx_update_camera();
+    for (i = 1; i <= PlayerGroupCount(PlayerGroupActive()); i += 1) {
+        p = PlayerGroupPlayer(PlayerGroupActive(), i);
+        selected = UnitGroupSelected(p);
+
+        if(UnitGroupCount(selected, c_unitCountAll) > 1 || UnitGroupCount(selected, c_unitCountAll) < 1) {
+            libapx_player[p].name_display = false;
+        }
+        else {
+            libapx_player[p].name_display = true;
+            u = UnitGroupUnit(selected, 1);
+        }
+        libapx_update_alllabels(p);
+        libapx_update_statdisplay(p);
+    }
+	return true;
+}
